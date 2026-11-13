@@ -16,7 +16,9 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import es.iesquevedo.dao.model.Receta;
-
+import es.iesquevedo.dao.model.Cita;
+import es.iesquevedo.dao.model.Factura;
+import java.sql.Timestamp;
 
 @Slf4j
 public class JDBCPacienteRepository implements PacienteRepository {
@@ -119,36 +121,67 @@ public class JDBCPacienteRepository implements PacienteRepository {
             throw new DatabaseError(Constantes.DATABASE_ERROR);
         }
     }
+
     @Override
     public boolean delete(Long id) {
         try (Connection conn = dbConnection.getConnection();
-             PreparedStatement pstmtRecetas = conn.prepareStatement(SQLQueries.DELETE_RECETAS_BY_PACIENTE);
-             PreparedStatement pstmtHistorias = conn.prepareStatement(SQLQueries.DELETE_HISTORIAS_BY_PACIENTE);
-             PreparedStatement pstmtUsuario = conn.prepareStatement(SQLQueries.DELETE_USUARIO_BY_PACIENTE);
-             PreparedStatement pstmtPaciente = conn.prepareStatement(SQLQueries.DELETE_PACIENTE)) {
+             PreparedStatement pstmtCitas =
+                     conn.prepareStatement(SQLQueries.DELETE_CITAS_BY_PACIENTE);
+             PreparedStatement pstmtFacturas =
+                     conn.prepareStatement(SQLQueries.DELETE_FACTURAS_BY_PACIENTE);
+             PreparedStatement pstmtRecetas = conn.prepareStatement(
+                     SQLQueries.DELETE_RECETAS_BY_PACIENTE);
+             PreparedStatement pstmtHistorias = conn.prepareStatement(
+                     SQLQueries.DELETE_HISTORIAS_BY_PACIENTE);
+             PreparedStatement pstmtUsuario = conn.prepareStatement(
+                     SQLQueries.DELETE_USUARIO_BY_PACIENTE);
+             PreparedStatement pstmtPaciente = conn.prepareStatement(
+                     SQLQueries.DELETE_PACIENTE)) {
+
             try {
                 conn.setAutoCommit(false);
+
+                // 1. Eliminar citas
+                pstmtCitas.setLong(1, id);
+                pstmtCitas.executeUpdate();
+
+                // 2. Eliminar facturas
+                pstmtFacturas.setLong(1, id);
+                pstmtFacturas.executeUpdate();
+
+                // 3. Eliminar recetas
                 pstmtRecetas.setLong(1, id);
                 pstmtRecetas.executeUpdate();
+
+                // 4. Eliminar historias clínicas
                 pstmtHistorias.setLong(1, id);
                 pstmtHistorias.executeUpdate();
+
+                // 5. Eliminar usuario
                 pstmtUsuario.setLong(1, id);
                 pstmtUsuario.executeUpdate();
+
+                // 6. Eliminar paciente
                 pstmtPaciente.setLong(1, id);
                 int filas = pstmtPaciente.executeUpdate();
                 conn.commit();
                 return filas > 0;
-            } catch (SQLIntegrityConstraintViolationException e) {
-                conn.rollback();
-                log.error(e.getMessage());
-                throw new DatabaseError("No se puede borrar el paciente: tiene registros en su historia.");
+
             } catch (SQLException e) {
                 conn.rollback();
                 log.error(e.getMessage());
+
+                if (e instanceof SQLIntegrityConstraintViolationException) {
+                    throw new DatabaseError(
+                            "No se puede borrar el paciente: tiene registros relacionados.");
+                }
+
                 throw new DatabaseError(Constantes.DATABASE_ERROR);
+
             } finally {
                 conn.setAutoCommit(true);
             }
+
         } catch (SQLException e) {
             log.error(e.getMessage());
             throw new DatabaseError(Constantes.DATABASE_ERROR);
@@ -156,52 +189,115 @@ public class JDBCPacienteRepository implements PacienteRepository {
     }
 
     @Override
-    public void restore(Paciente paciente, List<HistoriaClinica> historias, List<Receta> recetas) {
-        try (Connection conn = dbConnection.getConnection();
-             PreparedStatement pstmtPaciente = conn.prepareStatement(SQLQueries.RESTORE_PACIENTE);
-             PreparedStatement pstmtHistoria = conn.prepareStatement(SQLQueries.RESTORE_HISTORIA);
-             PreparedStatement pstmtReceta = conn.prepareStatement(SQLQueries.RESTORE_RECETA)) {
+    public void restore(
+            Paciente paciente,
+            List<HistoriaClinica> historias,
+            List<Receta> recetas,
+            List<Cita> citas,
+            List<Factura> facturas) {
+
+        try (Connection conn = dbConnection.getConnection()) {
+
             try {
                 conn.setAutoCommit(false);
-                pstmtPaciente.setLong(1, paciente.getId());
-                pstmtPaciente.setString(2, paciente.getNombre());
-                pstmtPaciente.setDate(3, Date.valueOf(paciente.getFechaNacimiento()));
-                pstmtPaciente.setString(4, paciente.getTelefono());
-                pstmtPaciente.executeUpdate();
 
-                for (HistoriaClinica historia : historias) {
-                    pstmtHistoria.setLong(1, historia.getId());
-                    pstmtHistoria.setLong(2, paciente.getId());
-                    pstmtHistoria.setLong(3, historia.getMedicoId());
-                    pstmtHistoria.setDate(4, Date.valueOf(historia.getFechaAdmision()));
-                    pstmtHistoria.setString(5, historia.getDiagnostico());
-                    pstmtHistoria.executeUpdate();
+                try (PreparedStatement pstmtPaciente =
+                             conn.prepareStatement(SQLQueries.RESTORE_PACIENTE);
+                     PreparedStatement pstmtHistoria =
+                             conn.prepareStatement(SQLQueries.RESTORE_HISTORIA);
+                     PreparedStatement pstmtReceta =
+                             conn.prepareStatement(SQLQueries.RESTORE_RECETA);
+                     PreparedStatement pstmtCita =
+                             conn.prepareStatement(SQLQueries.RESTORE_CITA);
+                     PreparedStatement pstmtFactura =
+                             conn.prepareStatement(SQLQueries.RESTORE_FACTURA)) {
+
+                    // 1. Restaurar paciente
+                    pstmtPaciente.setLong(1, paciente.getId());
+                    pstmtPaciente.setString(2, paciente.getNombre());
+                    pstmtPaciente.setDate(3, Date.valueOf(paciente.getFechaNacimiento()));
+                    pstmtPaciente.setString(4, paciente.getTelefono());
+                    pstmtPaciente.executeUpdate();
+
+                    // 2. Restaurar historias clínicas
+                    for (HistoriaClinica historia : historias) {
+                        pstmtHistoria.setLong(1, historia.getId());
+                        pstmtHistoria.setLong(2, paciente.getId());
+                        pstmtHistoria.setLong(3, historia.getMedicoId());
+                        pstmtHistoria.setDate(4, Date.valueOf(historia.getFechaAdmision()));
+                        pstmtHistoria.setString(5, historia.getDiagnostico());
+                        pstmtHistoria.executeUpdate();
+                    }
+
+                    // 3. Restaurar recetas
+                    for (Receta receta : recetas) {
+                        pstmtReceta.setLong(1, receta.getId());
+                        pstmtReceta.setLong(2, receta.getHistoriaId());
+                        pstmtReceta.setString(3, receta.getMedicamento());
+                        pstmtReceta.setString(4, receta.getDosis());
+                        pstmtReceta.executeUpdate();
+                    }
+
+                    // 4. Restaurar citas
+                    for (Cita cita : citas) {
+                        pstmtCita.setLong(1, cita.getId());
+                        pstmtCita.setLong(2, paciente.getId());
+                        pstmtCita.setLong(3, cita.getMedicoId());
+
+                        if (cita.getFechaCita() == null) {
+                            pstmtCita.setTimestamp(4, null);
+                        } else {
+                            pstmtCita.setTimestamp(
+                                    4,
+                                    Timestamp.valueOf(cita.getFechaCita())
+                            );
+                        }
+
+                        pstmtCita.executeUpdate();
+                    }
+
+                    // 5. Restaurar facturas
+                    for (Factura factura : facturas) {
+                        pstmtFactura.setLong(1, factura.getId());
+                        pstmtFactura.setLong(2, paciente.getId());
+
+                        if (factura.getFechaPago() == null) {
+                            pstmtFactura.setDate(3, null);
+                        } else {
+                            pstmtFactura.setDate(
+                                    3,
+                                    Date.valueOf(factura.getFechaPago())
+                            );
+                        }
+
+                        pstmtFactura.setBigDecimal(4, factura.getCantidad());
+                        pstmtFactura.executeUpdate();
+                    }
                 }
 
-                for (Receta receta : recetas) {
-                    pstmtReceta.setLong(1, receta.getId());
-                    pstmtReceta.setLong(2, receta.getHistoriaId());
-                    pstmtReceta.setString(3, receta.getMedicamento());
-                    pstmtReceta.setString(4, receta.getDosis());
-                    pstmtReceta.executeUpdate();
-                }
                 conn.commit();
+
             } catch (SQLIntegrityConstraintViolationException e) {
                 conn.rollback();
-                log.error(e.getMessage());
-                if (e.getErrorCode() == 1062) {          // clave duplicada
+                log.error("Error de integridad al restaurar paciente", e);
+
+                if (e.getErrorCode() == 1062) {
                     throw new PacienteDuplicadoError();
                 }
+
                 throw new DatabaseError(Constantes.REFERENCIA_ERROR);
+
             } catch (SQLException e) {
                 conn.rollback();
-                log.error(e.getMessage());
+                log.error("Error restaurando paciente", e);
                 throw new DatabaseError(Constantes.DATABASE_ERROR);
+
             } finally {
                 conn.setAutoCommit(true);
             }
+
         } catch (SQLException e) {
-            log.error(e.getMessage());
+            log.error("Error en la conexión al restaurar paciente", e);
             throw new DatabaseError(Constantes.DATABASE_ERROR);
         }
     }

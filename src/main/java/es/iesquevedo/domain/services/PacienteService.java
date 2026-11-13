@@ -18,6 +18,11 @@ import es.iesquevedo.dao.repositories.RecetaRepository;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import es.iesquevedo.dao.model.Cita;
+import es.iesquevedo.dao.model.Factura;
+import es.iesquevedo.dao.repositories.CitaRepository;
+import es.iesquevedo.dao.repositories.FacturaRepository;
+
 
 public class PacienteService {
     private final PacienteRepository pacienteRepository;
@@ -26,16 +31,25 @@ public class PacienteService {
     private final PacienteBackupMapper backupMapper;
     private final PacienteBackupService backupService;
     private final RecetaRepository recetaRepository;
+    private final CitaRepository citaRepository;
+    private final FacturaRepository facturaRepository;
+
     @Inject
-    public PacienteService(PacienteRepository pacienteRepository,
-                           HistoriaClinicaRepository historiaRepository,
-                           RecetaRepository recetaRepository,
-                           PacienteDTOMapper pacienteDTOMapper,
-                           PacienteBackupMapper backupMapper,
-                           PacienteBackupService backupService) {
+    public PacienteService(
+            PacienteRepository pacienteRepository,
+            HistoriaClinicaRepository historiaRepository,
+            RecetaRepository recetaRepository,
+            CitaRepository citaRepository,
+            FacturaRepository facturaRepository,
+            PacienteDTOMapper pacienteDTOMapper,
+            PacienteBackupMapper backupMapper,
+            PacienteBackupService backupService) {
+
         this.pacienteRepository = pacienteRepository;
         this.historiaRepository = historiaRepository;
         this.recetaRepository = recetaRepository;
+        this.citaRepository = citaRepository;
+        this.facturaRepository = facturaRepository;
         this.pacienteDTOMapper = pacienteDTOMapper;
         this.backupMapper = backupMapper;
         this.backupService = backupService;
@@ -57,28 +71,49 @@ public class PacienteService {
     public boolean tieneHistorias(Long id) {
         return !historiaRepository.findByPacienteId(id).isEmpty();
     }
+    public boolean tieneDatosRelacionados(Long id) {
+        return !historiaRepository.findByPacienteId(id).isEmpty()
+                || !recetaRepository.findByPacienteId(id).isEmpty()
+                || !citaRepository.findByPacienteId(id).isEmpty()
+                || !facturaRepository.findByPacienteId(id).isEmpty();
+    }
 
     /** Si tiene historias: backup XML primero. Si el backup falla, NO se borra. */
     public boolean delete(Long id) {
         Optional<Paciente> paciente = pacienteRepository.findById(id);
         if (paciente.isEmpty()) return false;
 
-        List<HistoriaClinica> historias = historiaRepository.findByPacienteId(id);
+        List<HistoriaClinica> historias =
+                historiaRepository.findByPacienteId(id);
 
-        Path backup = null;
-        if (!historias.isEmpty()) {
-            List<Receta> recetas = recetaRepository.findByPacienteId(id);
-            backup = backupService.backup(backupMapper.toBackupDTO(paciente.get(), historias, recetas));
+        List<Receta> recetas =
+                recetaRepository.findByPacienteId(id);
+
+        List<Cita> citas =
+                citaRepository.findByPacienteId(id);
+
+        List<Factura> facturas =
+                facturaRepository.findByPacienteId(id);
+
+        boolean tieneDatos =
+                !historias.isEmpty()
+                        || !recetas.isEmpty()
+                        || !citas.isEmpty()
+                        || !facturas.isEmpty();
+
+        if (tieneDatos) {
+            PacienteBackupDTO dto = backupMapper.toBackupDTO(
+                    paciente.get(),
+                    historias,
+                    recetas,
+                    citas,
+                    facturas
+            );
+
+            backupService.backup(dto);
         }
 
-        try {
-            boolean borrado = pacienteRepository.delete(id);
-            if (!borrado && backup != null) backupService.borrarSilencioso(backup);
-            return borrado;
-        } catch (DatabaseError e) {
-            if (backup != null) backupService.borrarSilencioso(backup);
-            throw e;
-        }
+        return pacienteRepository.delete(id);
     }
 
     /** Lee el XML más reciente del paciente y lo reinserta en la BD. */
@@ -93,7 +128,10 @@ public class PacienteService {
         pacienteRepository.restore(
                 backupMapper.toPaciente(dto),
                 backupMapper.toHistorias(dto),
-                backupMapper.toRecetas(dto));
+                backupMapper.toRecetas(dto),
+                backupMapper.toCitas(dto),
+                backupMapper.toFacturas(dto)
+        );
         return dto;
     }
 }

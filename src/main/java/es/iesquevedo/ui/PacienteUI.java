@@ -72,24 +72,40 @@ public class PacienteUI {
 
     /** Opción 4 */
     /** Opción 4 */
+    /**
+     * Opción 4
+     */
     public void delete() {
         try {
             if (!listar()) return;
+
             Long id = consola.numero("ID del paciente a borrar: ");
-            if (pacienteService.tieneHistorias(id)) {
-                IO.println("Este paciente tiene historias clínicas. Se guardará una copia de seguridad "
-                        + "en XML (sin credenciales) y se borrarán el paciente y todas sus historias.");
+
+            if (pacienteService.tieneDatosRelacionados(id)) {
+                IO.println("Este paciente tiene datos relacionados "
+                        + "(historias, recetas, citas o facturas).");
+
+                IO.println("Se guardará una copia de seguridad XML "
+                        + "sin credenciales antes de borrar sus datos.");
+
                 if (!consola.confirmar("¿Desea continuar?")) {
                     IO.println("Operación cancelada.");
                     return;
                 }
             }
-            IO.println(pacienteService.delete(id) ? "Paciente borrado." : "No existe ese paciente.");
+
+            IO.println(pacienteService.delete(id)
+                    ? "Paciente borrado."
+                    : "No existe ese paciente.");
+
         } catch (BackupError e) {
             log.error("Error de backup {}", e.getMessage());
-            IO.println("Error: " + e.getMessage() + ". El paciente NO ha sido borrado.");
+            IO.println("Error: " + e.getMessage()
+                    + ". El paciente NO ha sido borrado.");
+
         } catch (DatabaseError e) {
             errorBD(e);
+
         } catch (Exception e) {
             errorCritico("delete()", e);
         }
@@ -100,10 +116,32 @@ public class PacienteUI {
         try {
             Long id = consola.numero("ID del paciente a restaurar: ");
             PacienteBackupDTO restaurado = pacienteService.restore(id);
-            int historias = restaurado.getHistorias() == null ? 0 : restaurado.getHistorias().size();
+            int historias = restaurado.getHistorias() == null
+                    ? 0 : restaurado.getHistorias().size();
+
+            int recetas = 0;
+
+            if (restaurado.getHistorias() != null) {
+                recetas = restaurado.getHistorias().stream()
+                        .mapToInt(h -> h.getRecetas() == null
+                                ? 0 : h.getRecetas().size())
+                        .sum();
+            }
+
+            int citas = restaurado.getCitas() == null
+                    ? 0 : restaurado.getCitas().size();
+
+            int facturas = restaurado.getFacturas() == null
+                    ? 0 : restaurado.getFacturas().size();
+
             IO.println("Paciente restaurado: " + restaurado.getNombre()
-                    + " (ID " + restaurado.getId() + ") con " + historias + " historia(s) clínica(s).");
-        } catch (BackupError e) {
+                    + " (ID " + restaurado.getId() + ")");
+
+            IO.println("Historias clínicas: " + historias);
+            IO.println("Recetas: " + recetas);
+            IO.println("Citas: " + citas);
+            IO.println("Facturas: " + facturas);
+             } catch (BackupError e) {
             log.error("Error de backup {}", e.getMessage());
             IO.println("Error: " + e.getMessage());
         } catch (DatabaseError e) {

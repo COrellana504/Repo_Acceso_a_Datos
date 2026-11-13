@@ -55,7 +55,13 @@ public class PacienteBackupService {
     public PacienteBackupDTO read(Long pacienteId) {
         Path fichero = buscarMasReciente(pacienteId);
         try {
-            return (PacienteBackupDTO) context.createUnmarshaller().unmarshal(fichero.toFile());
+            Object resultado = context.createUnmarshaller().unmarshal(fichero.toFile());
+
+            if (!(resultado instanceof PacienteBackupDTO)) {
+                throw new BackupError("El XML no contiene un paciente válido");
+            }
+
+            return (PacienteBackupDTO) resultado;
         } catch (JAXBException | ClassCastException e) {
             log.error("Error leyendo {}: {}", fichero, e.getMessage());
             throw new BackupError("El fichero de copia de seguridad no es válido: " + fichero.getFileName(), e);

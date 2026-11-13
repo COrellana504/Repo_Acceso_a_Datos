@@ -31,4 +31,27 @@ public class SQLQueries {
   public static final String DELETE_RECETAS_BY_PACIENTE =
           "DELETE FROM recetas WHERE historia_id IN (SELECT historia_id FROM historia_clinica WHERE paciente_id = ?)";
 
+  // Citas
+  public static final String FIND_CITAS_BY_PACIENTE =
+          "SELECT * FROM citas WHERE paciente_id = ?";
+
+  public static final String DELETE_CITAS_BY_PACIENTE =
+          "DELETE FROM citas WHERE paciente_id = ?";
+
+  public static final String RESTORE_CITA =
+          "INSERT INTO citas (cita_id, paciente_id, medico_id, fecha_cita) " +
+                  "VALUES (?, ?, ?, ?)";
+
+  // Facturas
+  public static final String FIND_FACTURAS_BY_PACIENTE =
+          "SELECT * FROM facturas WHERE paciente_id = ?";
+
+  public static final String DELETE_FACTURAS_BY_PACIENTE =
+          "DELETE FROM facturas WHERE paciente_id = ?";
+
+  public static final String RESTORE_FACTURA =
+          "INSERT INTO facturas (factura_id, paciente_id, fecha_pago, cantidad) " +
+                  "VALUES (?, ?, ?, ?)";
+
+
 }
