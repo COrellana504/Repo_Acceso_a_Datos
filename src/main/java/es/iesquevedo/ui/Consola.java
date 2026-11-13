@@ -13,6 +13,14 @@ public class Consola {
             IO.println("El valor no puede estar vacío.");
         }
     }
+    public boolean confirmar(String mensaje) {
+        while (true) {
+            String respuesta = IO.readln(mensaje + " (s/n): ").trim().toLowerCase();
+            if (respuesta.equals("s") || respuesta.equals("si") || respuesta.equals("sí")) return true;
+            if (respuesta.equals("n") || respuesta.equals("no")) return false;
+            IO.println("Responda s o n.");
+        }
+    }
 
     public Long numero(String mensaje) {
         while (true) {

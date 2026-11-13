@@ -7,7 +7,8 @@ import es.iesquevedo.domain.error.DatabaseError;
 import es.iesquevedo.domain.services.PacienteService;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-
+import es.iesquevedo.domain.dto.backup.PacienteBackupDTO;
+import es.iesquevedo.domain.error.BackupError;
 import java.util.List;
 
 @Slf4j
@@ -70,15 +71,45 @@ public class PacienteUI {
     }
 
     /** Opción 4 */
+    /** Opción 4 */
     public void delete() {
         try {
             if (!listar()) return;
             Long id = consola.numero("ID del paciente a borrar: ");
+            if (pacienteService.tieneHistorias(id)) {
+                IO.println("Este paciente tiene historias clínicas. Se guardará una copia de seguridad "
+                        + "en XML (sin credenciales) y se borrarán el paciente y todas sus historias.");
+                if (!consola.confirmar("¿Desea continuar?")) {
+                    IO.println("Operación cancelada.");
+                    return;
+                }
+            }
             IO.println(pacienteService.delete(id) ? "Paciente borrado." : "No existe ese paciente.");
+        } catch (BackupError e) {
+            log.error("Error de backup {}", e.getMessage());
+            IO.println("Error: " + e.getMessage() + ". El paciente NO ha sido borrado.");
         } catch (DatabaseError e) {
             errorBD(e);
         } catch (Exception e) {
             errorCritico("delete()", e);
+        }
+    }
+
+    /** Opción 10 */
+    public void restore() {
+        try {
+            Long id = consola.numero("ID del paciente a restaurar: ");
+            PacienteBackupDTO restaurado = pacienteService.restore(id);
+            int historias = restaurado.getHistorias() == null ? 0 : restaurado.getHistorias().size();
+            IO.println("Paciente restaurado: " + restaurado.getNombre()
+                    + " (ID " + restaurado.getId() + ") con " + historias + " historia(s) clínica(s).");
+        } catch (BackupError e) {
+            log.error("Error de backup {}", e.getMessage());
+            IO.println("Error: " + e.getMessage());
+        } catch (DatabaseError e) {
+            errorBD(e);
+        } catch (Exception e) {
+            errorCritico("restore()", e);
         }
     }
 

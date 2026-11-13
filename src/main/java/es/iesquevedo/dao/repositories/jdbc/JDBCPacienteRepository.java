@@ -10,10 +10,13 @@ import es.iesquevedo.domain.error.DatabaseError;
 import es.iesquevedo.domain.error.PacienteDuplicadoError;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-
+import es.iesquevedo.dao.model.HistoriaClinica;
+import java.util.Optional;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import es.iesquevedo.dao.model.Receta;
+
 
 @Slf4j
 public class JDBCPacienteRepository implements PacienteRepository {
@@ -103,14 +106,32 @@ public class JDBCPacienteRepository implements PacienteRepository {
             throw new DatabaseError(Constantes.DATABASE_ERROR);
         }
     }
-
+    @Override
+    public Optional<Paciente> findById(Long id) {
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(SQLQueries.FIND_PACIENTE_BY_ID)) {
+            pstmt.setLong(1, id);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return rs.next() ? Optional.of(pacienteRowMapper.mapRow(rs, rs.getRow())) : Optional.empty();
+            }
+        } catch (SQLException e) {
+            log.error(e.getMessage());
+            throw new DatabaseError(Constantes.DATABASE_ERROR);
+        }
+    }
     @Override
     public boolean delete(Long id) {
         try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmtRecetas = conn.prepareStatement(SQLQueries.DELETE_RECETAS_BY_PACIENTE);
+             PreparedStatement pstmtHistorias = conn.prepareStatement(SQLQueries.DELETE_HISTORIAS_BY_PACIENTE);
              PreparedStatement pstmtUsuario = conn.prepareStatement(SQLQueries.DELETE_USUARIO_BY_PACIENTE);
              PreparedStatement pstmtPaciente = conn.prepareStatement(SQLQueries.DELETE_PACIENTE)) {
             try {
                 conn.setAutoCommit(false);
+                pstmtRecetas.setLong(1, id);
+                pstmtRecetas.executeUpdate();
+                pstmtHistorias.setLong(1, id);
+                pstmtHistorias.executeUpdate();
                 pstmtUsuario.setLong(1, id);
                 pstmtUsuario.executeUpdate();
                 pstmtPaciente.setLong(1, id);
@@ -133,4 +154,57 @@ public class JDBCPacienteRepository implements PacienteRepository {
             throw new DatabaseError(Constantes.DATABASE_ERROR);
         }
     }
+
+    @Override
+    public void restore(Paciente paciente, List<HistoriaClinica> historias, List<Receta> recetas) {
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmtPaciente = conn.prepareStatement(SQLQueries.RESTORE_PACIENTE);
+             PreparedStatement pstmtHistoria = conn.prepareStatement(SQLQueries.RESTORE_HISTORIA);
+             PreparedStatement pstmtReceta = conn.prepareStatement(SQLQueries.RESTORE_RECETA)) {
+            try {
+                conn.setAutoCommit(false);
+                pstmtPaciente.setLong(1, paciente.getId());
+                pstmtPaciente.setString(2, paciente.getNombre());
+                pstmtPaciente.setDate(3, Date.valueOf(paciente.getFechaNacimiento()));
+                pstmtPaciente.setString(4, paciente.getTelefono());
+                pstmtPaciente.executeUpdate();
+
+                for (HistoriaClinica historia : historias) {
+                    pstmtHistoria.setLong(1, historia.getId());
+                    pstmtHistoria.setLong(2, paciente.getId());
+                    pstmtHistoria.setLong(3, historia.getMedicoId());
+                    pstmtHistoria.setDate(4, Date.valueOf(historia.getFechaAdmision()));
+                    pstmtHistoria.setString(5, historia.getDiagnostico());
+                    pstmtHistoria.executeUpdate();
+                }
+
+                for (Receta receta : recetas) {
+                    pstmtReceta.setLong(1, receta.getId());
+                    pstmtReceta.setLong(2, receta.getHistoriaId());
+                    pstmtReceta.setString(3, receta.getMedicamento());
+                    pstmtReceta.setString(4, receta.getDosis());
+                    pstmtReceta.executeUpdate();
+                }
+                conn.commit();
+            } catch (SQLIntegrityConstraintViolationException e) {
+                conn.rollback();
+                log.error(e.getMessage());
+                if (e.getErrorCode() == 1062) {          // clave duplicada
+                    throw new PacienteDuplicadoError();
+                }
+                throw new DatabaseError(Constantes.REFERENCIA_ERROR);
+            } catch (SQLException e) {
+                conn.rollback();
+                log.error(e.getMessage());
+                throw new DatabaseError(Constantes.DATABASE_ERROR);
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            log.error(e.getMessage());
+            throw new DatabaseError(Constantes.DATABASE_ERROR);
+        }
+    }
+
+
 }
