@@ -1,5 +1,7 @@
+
 package es.iesquevedo.dao.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
 @Builder
@@ -9,7 +11,10 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 public class Medico {
+
+    @JsonProperty("medico_id")
     private Long id;
+
     private String nombre;
     private String especialidad;
     private String telefono;

@@ -1,15 +1,13 @@
+
 package es.iesquevedo;
 
-import es.iesquevedo.ui.MainMenu;
-import jakarta.enterprise.inject.se.SeContainer;
-import jakarta.enterprise.inject.se.SeContainerInitializer;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+@SpringBootApplication
 public class Application {
-  static void main() {
-    try (SeContainer container = SeContainerInitializer.newInstance().initialize()) {
-      MainMenu mainMenu = container.select(MainMenu.class).get();
-      mainMenu.run();
-    }
+
+  public static void main(String[] args) {
+    SpringApplication.run(Application.class, args);
   }
 }
-
