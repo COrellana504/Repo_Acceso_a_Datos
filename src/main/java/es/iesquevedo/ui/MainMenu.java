@@ -28,7 +28,7 @@ public class MainMenu {
 
       int opcion = 0;
 
-      while (opcion != 10) {
+      while (opcion != 11) {
         IO.println("""
 
             1. Mostrar todos los pacientes
@@ -40,7 +40,8 @@ public class MainMenu {
             7. Añadir un registro a la historia de un paciente
             8. Actualizar un registro de la historia de un paciente
             9. Borrar un registro
-            10. Salir""");
+            10. Restaurar paciente
+            11. Salir""");
 
         String linea = IO.readln("Introduzca una opción ...\n").trim();
         if (linea.isEmpty()) continue;
@@ -61,7 +62,8 @@ public class MainMenu {
           case 7 -> historiaUi.add();
           case 8 -> historiaUi.update();
           case 9 -> historiaUi.delete();
-          case 10 -> IO.println("Hasta la vista");
+          case 10 -> pacienteUi.restore();
+          case 11 -> IO.println("Hasta la vista");
           default -> IO.println("Opción no válida");
         }
       }

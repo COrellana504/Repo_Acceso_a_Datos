@@ -6,4 +6,5 @@ public class Constantes {
     public static final String PACIENTE_DUPLICADO_ERROR = "Paciente ya existe en la BD. Pruebe con uno diferente.";
     public static final String REFERENCIA_ERROR = "No se puede completar la operación: hay datos relacionados (paciente, médico o historias).";
     public static final String MYSQL_PROPERTIES = "mysql-properties.xml";
+    public static final String BACKUP_PACIENTES_DIR = "backups/pacientes";
 }
